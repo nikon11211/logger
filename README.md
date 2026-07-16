@@ -11,8 +11,8 @@
   <a href="https://goreportcard.com/report/github.com/nikon11211/logger">
     <img src="https://goreportcard.com/badge/github.com/nikon11211/logger" alt="Go Report Card"/>
   </a>
-  <a href="https://github.com/nikon11211/logger/actions">
-    <img src="https://github.com/nikon11211/logger/actions/workflows/tests.yml/badge.svg" alt="Tests"/>
+  <a href="https://github.com/nikon11211/logger/actions/workflows/test.yaml">
+    <img src="https://github.com/nikon11211/logger/actions/workflows/test.yaml/badge.svg" alt="Tests"/>
   </a>
   <a href="https://codecov.io/gh/nikon11211/logger">
     <img src="https://codecov.io/gh/nikon11211/logger/branch/main/graph/badge.svg" alt="Coverage"/>

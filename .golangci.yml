@@ -1,0 +1,43 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+
+  settings:
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+          disabled: false
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+    paths:
+      - _test\.go
+    rules:
+      - linters:
+          - errcheck
+          - unused
+        path: _test\.go
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+run:
+  timeout: 5m
+  tests: true

@@ -495,7 +495,7 @@ func (l *Logger) SetLevel(level string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.Logger = l.Logger.Level(newLevel)
+	l.Logger = l.Level(newLevel)
 	l.config.LogLevel = level
 	return nil
 }

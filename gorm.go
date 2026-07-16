@@ -43,15 +43,15 @@ func (gl *GormLogger) LogMode(level logger.LogLevel) logger.Interface {
 }
 
 func (gl *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	gl.Logger.InfoCtx(ctx, fmt.Sprintf(msg, data...))
+	gl.InfoCtx(ctx, fmt.Sprintf(msg, data...))
 }
 
 func (gl *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	gl.Logger.WarnCtx(ctx, fmt.Sprintf(msg, data...))
+	gl.WarnCtx(ctx, fmt.Sprintf(msg, data...))
 }
 
 func (gl *GormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	gl.Logger.ErrorCtx(ctx, fmt.Sprintf(msg, data...))
+	gl.ErrorCtx(ctx, fmt.Sprintf(msg, data...))
 }
 
 func (gl *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
@@ -64,10 +64,10 @@ func (gl *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (str
 
 	switch {
 	case err != nil:
-		gl.Logger.ErrorCtxf(ctx, "gorm error: %v [%s] (%d rows)", err, sql, rows)
+		gl.ErrorCtxf(ctx, "gorm error: %v [%s] (%d rows)", err, sql, rows)
 	case elapsed > gl.slowThreshold:
-		gl.Logger.WarnCtxf(ctx, "slow query [%s]: %s (%d rows)", elapsed, sql, rows)
+		gl.WarnCtxf(ctx, "slow query [%s]: %s (%d rows)", elapsed, sql, rows)
 	case gl.traceAll:
-		gl.Logger.DebugCtxf(ctx, "query: %s (%d rows, %v)", sql, rows, elapsed)
+		gl.DebugCtxf(ctx, "query: %s (%d rows, %v)", sql, rows, elapsed)
 	}
 }

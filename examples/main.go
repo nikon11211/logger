@@ -59,9 +59,8 @@ func main() {
 		panic(fmt.Sprintf("Failed to initialize logger: %v", err))
 	}
 	defer func(log *logger.Logger) {
-		err := log.Close()
-		if err != nil {
-
+		if err := log.Close(); err != nil {
+			fmt.Printf("Error closing logger: %v\n", err)
 		}
 	}(log)
 

@@ -12,7 +12,6 @@ const (
 	defaultSlowThreshold = 200 * time.Millisecond
 )
 
-// GormLogger implements gorm.Logger interface
 type GormLogger struct {
 	*Logger
 	slowThreshold time.Duration

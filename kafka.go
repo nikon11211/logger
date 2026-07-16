@@ -131,15 +131,15 @@ func (kl *KafkaLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
 	var event *zerolog.Event
 	switch level {
 	case kgo.LogLevelDebug:
-		event = kl.Logger.Debug()
+		event = kl.Debug()
 	case kgo.LogLevelInfo:
-		event = kl.Logger.Info()
+		event = kl.Info()
 	case kgo.LogLevelWarn:
-		event = kl.Logger.Warn()
+		event = kl.Warn()
 	case kgo.LogLevelError:
-		event = kl.Logger.Error()
+		event = kl.Error()
 	default:
-		event = kl.Logger.Debug()
+		event = kl.Debug()
 	}
 
 	for i := 0; i < len(keyvals); i += 2 {

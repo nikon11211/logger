@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/nikon11211/logger/main/.github/logo.png" alt="Logger Logo" width="200"/>
-</p>
-
 <h1 align="center">Logger - Enterprise-Grade Structured Logger for Go</h1>
 
 <p align="center">

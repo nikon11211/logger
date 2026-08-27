@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -75,7 +76,7 @@ func main() {
 	userID := 42
 	log.InfoCtxf(ctx, "User %d profile updated successfully", userID)
 
-	if err := simulateDatabaseError(); err != nil {
+	if err = simulateDatabaseError(); err != nil {
 		log.ErrorCtxf(ctx, "Database operation failed: %v", err)
 	}
 
@@ -143,5 +144,9 @@ func main() {
 }
 
 func simulateDatabaseError() error {
-	return errors.New("connection timeout after 30s: dial tcp 10.0.0.1:5432: i/o timeout")
+	// Симуляция: иногда ошибка, иногда успех
+	if rand.Intn(2) == 0 {
+		return errors.New("connection timeout after 30s: dial tcp 10.0.0.1:5432: i/o timeout")
+	}
+	return nil
 }

@@ -41,15 +41,15 @@ func (gl *GormLogger) LogMode(level logger.LogLevel) logger.Interface {
 	return gl
 }
 
-func (gl *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+func (gl *GormLogger) Info(ctx context.Context, msg string, data ...any) {
 	gl.InfoCtx(ctx, fmt.Sprintf(msg, data...))
 }
 
-func (gl *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+func (gl *GormLogger) Warn(ctx context.Context, msg string, data ...any) {
 	gl.WarnCtx(ctx, fmt.Sprintf(msg, data...))
 }
 
-func (gl *GormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+func (gl *GormLogger) Error(ctx context.Context, msg string, data ...any) {
 	gl.ErrorCtx(ctx, fmt.Sprintf(msg, data...))
 }
 

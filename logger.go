@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,15 +36,16 @@ const (
 )
 
 var (
-	globalLogger *Logger
-	globalMu     sync.RWMutex
+	globalLogger  *Logger
+	globalMu      sync.RWMutex
+	parseLogLevel = zerolog.ParseLevel
 )
 
 type Logger struct {
 	zerolog.Logger
 	module      string
 	config      Config
-	producer    *kgo.Client
+	producer    kafkaProducer
 	callerDepth int
 	mu          sync.RWMutex
 }
@@ -98,7 +100,7 @@ func GetLogger() (*Logger, error) {
 	defer globalMu.RUnlock()
 
 	if globalLogger == nil {
-		return nil, fmt.Errorf("logger not initialized")
+		return nil, errors.New("logger not initialized")
 	}
 	return globalLogger, nil
 }
@@ -108,7 +110,7 @@ func New(cfg Config) (*Logger, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	level, err := zerolog.ParseLevel(cfg.LogLevel)
+	level, err := parseLogLevel(cfg.LogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse log level: %w", err)
 	}
@@ -137,11 +139,11 @@ func New(cfg Config) (*Logger, error) {
 		Logger:      baseLogger,
 		module:      cfg.Module,
 		config:      cfg,
-		producer:    producer,
 		callerDepth: cfg.CallerDepth,
 	}
 
 	if producer != nil {
+		l.producer = producer
 		kafkaW := newKafkaWriter(l, producer, cfg.KafkaConfig.Topic)
 		multiWriter.AddWriter(kafkaW)
 	}
@@ -158,12 +160,15 @@ func (l *Logger) Close() error {
 		return nil
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	var producer kafkaProducer
+	l.mu.RLock()
+	producer = l.producer
+	logger := l.Logger
+	l.mu.RUnlock()
 
-	if l.producer != nil {
-		l.producer.Close()
-		l.Info("Kafka producer closed successfully")
+	if producer != nil {
+		producer.Close()
+		logger.Info().Msg("Kafka producer closed successfully")
 	}
 	return nil
 }
@@ -172,28 +177,32 @@ func (l *Logger) Print(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Print(i...)
+	logger, _ := l.current()
+	logger.Print(i...)
 }
 
 func (l *Logger) Printf(format string, args ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf(format, args...)
+	logger, _ := l.current()
+	logger.Printf(format, args...)
 }
 
 func (l *Logger) Printj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Debug(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Debug().Msg(fmt.Sprint(i...))
+	logger, _ := l.current()
+	logger.Debug().Msg(fmt.Sprint(i...))
 }
 
 func (l *Logger) Debugf(format string, args ...any) {
@@ -201,21 +210,24 @@ func (l *Logger) Debugf(format string, args ...any) {
 		return
 	}
 	formattedMsg := fmt.Sprintf(format, args...)
-	l.Logger.Debug().Msg(formattedMsg)
+	logger, _ := l.current()
+	logger.Debug().Msg(formattedMsg)
 }
 
 func (l *Logger) Debugj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Info(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Info().Msg(fmt.Sprint(i...))
+	logger, _ := l.current()
+	logger.Info().Msg(fmt.Sprint(i...))
 }
 
 func (l *Logger) Infof(format string, args ...any) {
@@ -223,21 +235,24 @@ func (l *Logger) Infof(format string, args ...any) {
 		return
 	}
 	formattedMsg := fmt.Sprintf(format, args...)
-	l.Logger.Info().Msg(formattedMsg)
+	logger, _ := l.current()
+	logger.Info().Msg(formattedMsg)
 }
 
 func (l *Logger) Infoj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Warn(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Warn().Msg(fmt.Sprint(i...))
+	logger, _ := l.current()
+	logger.Warn().Msg(fmt.Sprint(i...))
 }
 
 func (l *Logger) Warnf(format string, args ...any) {
@@ -245,21 +260,24 @@ func (l *Logger) Warnf(format string, args ...any) {
 		return
 	}
 	formattedMsg := fmt.Sprintf(format, args...)
-	l.Logger.Warn().Msg(formattedMsg)
+	logger, _ := l.current()
+	logger.Warn().Msg(formattedMsg)
 }
 
 func (l *Logger) Warnj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Error(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Error().Msg(fmt.Sprint(i...))
+	logger, _ := l.current()
+	logger.Error().Msg(fmt.Sprint(i...))
 }
 
 func (l *Logger) Errorf(format string, args ...any) {
@@ -267,28 +285,32 @@ func (l *Logger) Errorf(format string, args ...any) {
 		return
 	}
 	formattedMsg := fmt.Sprintf(format, args...)
-	l.Logger.Error().Msg(formattedMsg)
+	logger, _ := l.current()
+	logger.Error().Msg(formattedMsg)
 }
 
 func (l *Logger) Errorj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Fatal(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Fatal().Msg(fmt.Sprint(i...))
+	logger, _ := l.current()
+	logger.Fatal().Msg(fmt.Sprint(i...))
 }
 
 func (l *Logger) Fatalj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Fatalf(format string, args ...any) {
@@ -296,21 +318,24 @@ func (l *Logger) Fatalf(format string, args ...any) {
 		return
 	}
 	formattedMsg := fmt.Sprintf(format, args...)
-	l.Logger.Fatal().Msg(formattedMsg)
+	logger, _ := l.current()
+	logger.Fatal().Msg(formattedMsg)
 }
 
 func (l *Logger) Panic(i ...any) {
 	if l == nil {
 		return
 	}
-	l.Logger.Panic().Msg(fmt.Sprint(i...))
+	logger, _ := l.current()
+	logger.Panic().Msg(fmt.Sprint(i...))
 }
 
 func (l *Logger) Panicj(j glog.JSON) {
 	if l == nil {
 		return
 	}
-	l.Logger.Printf("%+v", j)
+	logger, _ := l.current()
+	logger.Printf("%+v", j)
 }
 
 func (l *Logger) Panicf(format string, args ...any) {
@@ -318,7 +343,8 @@ func (l *Logger) Panicf(format string, args ...any) {
 		return
 	}
 	formattedMsg := fmt.Sprintf(format, args...)
-	l.Logger.Panic().Msg(formattedMsg)
+	logger, _ := l.current()
+	logger.Panic().Msg(formattedMsg)
 }
 
 func (l *Logger) DebugCtx(ctx context.Context, msg string) {
@@ -385,12 +411,14 @@ func (l *Logger) AppStats() {
 	if l == nil {
 		return
 	}
-	msg := fmt.Sprintf(banner, l.module, l.config.LogLevel)
-	l.Logger.Info().Msg(msg)
+	logger, cfg := l.current()
+	msg := fmt.Sprintf(banner, l.module, cfg.LogLevel)
+	logger.Info().Msg(msg)
 }
 
 func (l *Logger) GetLevel() zerolog.Level {
-	return l.Logger.GetLevel()
+	logger, _ := l.current()
+	return logger.GetLevel()
 }
 
 func (l *Logger) WithContext(ctx context.Context) *Logger {
@@ -398,9 +426,9 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 		return nil
 	}
 
-	logger := l.Logger.With().Logger()
+	logger, cfg := l.current()
 
-	if l.config.TraceEnabled {
+	if cfg.TraceEnabled {
 		if span := trace.SpanFromContext(ctx); span != nil {
 			spanCtx := span.SpanContext()
 			if spanCtx.HasTraceID() {
@@ -415,7 +443,7 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 	return &Logger{
 		Logger:      logger,
 		module:      l.module,
-		config:      l.config,
+		config:      cfg,
 		producer:    l.producer,
 		callerDepth: l.callerDepth,
 	}
@@ -425,11 +453,12 @@ func (l *Logger) WithGroup(name string) *Logger {
 	if l == nil {
 		return nil
 	}
+	logger, cfg := l.current()
 
 	return &Logger{
-		Logger:      l.Logger.With().Str("group", name).Logger(),
+		Logger:      logger.With().Str("group", name).Logger(),
 		module:      l.module,
-		config:      l.config,
+		config:      cfg,
 		producer:    l.producer,
 		callerDepth: l.callerDepth,
 	}
@@ -439,15 +468,16 @@ func (l *Logger) WithCallerDepth(depth int) *Logger {
 	if l == nil {
 		return nil
 	}
+	logger, cfg := l.current()
 
-	newLogger := l.Logger.With().
+	newLogger := logger.With().
 		CallerWithSkipFrameCount(depth).
 		Logger()
 
 	return &Logger{
 		Logger:      newLogger,
 		module:      l.module,
-		config:      l.config,
+		config:      cfg,
 		producer:    l.producer,
 		callerDepth: depth,
 	}
@@ -469,10 +499,12 @@ func (l *Logger) NewKafkaLogger(env, service string) *KafkaLogger {
 		zerologLvl = zerolog.InfoLevel
 	}
 
-	kafkaLogger := l.Logger.With().
+	logger, _ := l.current()
+
+	kafkaLogger := logger.With().
 		Str("component", "kafka").
 		Str("service", service).
-		Str("module", fmt.Sprintf("KAFKA_%s", service)).
+		Str("module", "KAFKA_"+service).
 		Logger().
 		Level(zerologLvl)
 
@@ -484,7 +516,7 @@ func (l *Logger) NewKafkaLogger(env, service string) *KafkaLogger {
 
 func (l *Logger) SetLevel(level string) error {
 	if l == nil {
-		return fmt.Errorf("logger is nil")
+		return errors.New("logger is nil")
 	}
 
 	newLevel, err := zerolog.ParseLevel(level)
@@ -500,6 +532,12 @@ func (l *Logger) SetLevel(level string) error {
 	return nil
 }
 
+func (l *Logger) current() (zerolog.Logger, Config) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.Logger, l.config
+}
+
 func setupConsoleWriter(cfg Config) []io.Writer {
 	var writers []io.Writer
 
@@ -511,14 +549,14 @@ func setupConsoleWriter(cfg Config) []io.Writer {
 			})
 		} else {
 			writers = append(writers, zerolog.ConsoleWriter{
-				FormatLevel: func(i interface{}) string {
+				FormatLevel: func(i any) string {
 					level := strings.ToUpper(fmt.Sprintf("%s", i))
 					if len(level) == 4 {
 						return fmt.Sprintf("[%s]", level)
 					}
 					return fmt.Sprintf("[%s]", level)
 				},
-				FormatMessage: func(i interface{}) string {
+				FormatMessage: func(i any) string {
 					return fmt.Sprintf("%s", i)
 				},
 				NoColor:    true,

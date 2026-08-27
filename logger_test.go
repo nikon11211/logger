@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.True(t, cfg.PrettyPrint)
 	assert.False(t, cfg.TraceEnabled)
 	assert.False(t, cfg.GormTrace)
-	assert.Equal(t, uint(200), cfg.GormSlowQueryThreshold)
+	assert.Equal(t, int64(200), cfg.GormSlowQueryThreshold)
 	assert.False(t, cfg.Color)
 }
 
@@ -235,7 +236,7 @@ func TestLoggerLevels(t *testing.T) {
 			buf.Reset()
 			tt.logFunc()
 
-			var logEntry map[string]interface{}
+			var logEntry map[string]any
 			err := json.Unmarshal(buf.Bytes(), &logEntry)
 			require.NoError(t, err)
 
@@ -266,7 +267,7 @@ func TestFormattedLogging(t *testing.T) {
 		buf.Reset()
 		logger.Debugf("user %d logged in", 42)
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "user 42 logged in", logEntry["message"])
 	})
@@ -275,7 +276,7 @@ func TestFormattedLogging(t *testing.T) {
 		buf.Reset()
 		logger.Infof("processing %d items", 100)
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "processing 100 items", logEntry["message"])
 	})
@@ -284,7 +285,7 @@ func TestFormattedLogging(t *testing.T) {
 		buf.Reset()
 		logger.Errorf("connection failed: %v", fmt.Errorf("timeout"))
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Contains(t, logEntry["message"], "connection failed: timeout")
 	})
@@ -319,7 +320,7 @@ func TestContextLogging(t *testing.T) {
 		buf.Reset()
 		logger.DebugCtx(ctx, "debug with ctx")
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "debug with ctx", logEntry["message"])
 		assert.Contains(t, logEntry, "trace_id")
@@ -351,7 +352,7 @@ func TestWithGroup(t *testing.T) {
 
 	t.Logf("Log output: %s", buf.String())
 
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	err = json.Unmarshal(buf.Bytes(), &logEntry)
 	require.NoError(t, err)
 
@@ -609,6 +610,42 @@ func TestSetLevel(t *testing.T) {
 	})
 }
 
+func TestSetLevelConcurrentWithLogging(t *testing.T) {
+	cfg := Config{
+		Module:                 "test",
+		LogLevel:               "info",
+		KafkaLogLevel:          "error",
+		PrettyPrint:            false,
+		GormSlowQueryThreshold: 200,
+	}
+
+	logger, err := New(cfg)
+	require.NoError(t, err)
+	defer logger.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := range 1000 {
+			logger.Info("concurrent read", i)
+			logger.WithContext(context.Background()).Debug("with ctx")
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for range 1000 {
+			_ = logger.SetLevel("info")
+			_ = logger.SetLevel("debug")
+		}
+	}()
+
+	wg.Wait()
+	assert.Equal(t, zerolog.DebugLevel, logger.GetLevel())
+}
+
 func TestPrintMethods(t *testing.T) {
 	var buf bytes.Buffer
 
@@ -640,7 +677,7 @@ func TestPrintMethods(t *testing.T) {
 
 	t.Run("Printj", func(t *testing.T) {
 		buf.Reset()
-		logger.Printj(map[string]interface{}{"key": "value"})
+		logger.Printj(map[string]any{"key": "value"})
 		assert.NotEmpty(t, buf.String())
 	})
 }
@@ -664,25 +701,25 @@ func TestDebugjInfojWarnjErrorj(t *testing.T) {
 
 	t.Run("Debugj", func(t *testing.T) {
 		buf.Reset()
-		logger.Debugj(map[string]interface{}{"level": "debug"})
+		logger.Debugj(map[string]any{"level": "debug"})
 		assert.NotEmpty(t, buf.String())
 	})
 
 	t.Run("Infoj", func(t *testing.T) {
 		buf.Reset()
-		logger.Infoj(map[string]interface{}{"level": "info"})
+		logger.Infoj(map[string]any{"level": "info"})
 		assert.NotEmpty(t, buf.String())
 	})
 
 	t.Run("Warnj", func(t *testing.T) {
 		buf.Reset()
-		logger.Warnj(map[string]interface{}{"level": "warn"})
+		logger.Warnj(map[string]any{"level": "warn"})
 		assert.NotEmpty(t, buf.String())
 	})
 
 	t.Run("Errorj", func(t *testing.T) {
 		buf.Reset()
-		logger.Errorj(map[string]interface{}{"level": "error"})
+		logger.Errorj(map[string]any{"level": "error"})
 		assert.NotEmpty(t, buf.String())
 	})
 }
@@ -702,12 +739,12 @@ func TestFatalAndPanicMethods(t *testing.T) {
 
 	t.Run("Fatalj", func(t *testing.T) {
 		var nilLogger *Logger
-		nilLogger.Fatalj(map[string]interface{}{})
+		nilLogger.Fatalj(map[string]any{})
 	})
 
 	t.Run("Panicj", func(t *testing.T) {
 		var nilLogger *Logger
-		nilLogger.Panicj(map[string]interface{}{})
+		nilLogger.Panicj(map[string]any{})
 	})
 }
 
@@ -732,7 +769,7 @@ func TestCtxfMethods(t *testing.T) {
 	t.Run("DebugCtxf", func(t *testing.T) {
 		buf.Reset()
 		logger.DebugCtxf(ctx, "debug %s", "test")
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "debug test", logEntry["message"])
 	})
@@ -740,7 +777,7 @@ func TestCtxfMethods(t *testing.T) {
 	t.Run("InfoCtxf", func(t *testing.T) {
 		buf.Reset()
 		logger.InfoCtxf(ctx, "info %s", "test")
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "info test", logEntry["message"])
 	})
@@ -748,7 +785,7 @@ func TestCtxfMethods(t *testing.T) {
 	t.Run("WarnCtxf", func(t *testing.T) {
 		buf.Reset()
 		logger.WarnCtxf(ctx, "warn %s", "test")
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "warn test", logEntry["message"])
 	})
@@ -756,7 +793,7 @@ func TestCtxfMethods(t *testing.T) {
 	t.Run("ErrorCtxf", func(t *testing.T) {
 		buf.Reset()
 		logger.ErrorCtxf(ctx, "error %s", "test")
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "error test", logEntry["message"])
 	})
@@ -769,7 +806,7 @@ func TestNilLoggerMethods(t *testing.T) {
 		assert.NotPanics(t, func() {
 			nilLogger.Print("test")
 			nilLogger.Printf("test %s", "arg")
-			nilLogger.Printj(map[string]interface{}{})
+			nilLogger.Printj(map[string]any{})
 		})
 	})
 
@@ -777,7 +814,7 @@ func TestNilLoggerMethods(t *testing.T) {
 		assert.NotPanics(t, func() {
 			nilLogger.Debug("test")
 			nilLogger.Debugf("test %s", "arg")
-			nilLogger.Debugj(map[string]interface{}{})
+			nilLogger.Debugj(map[string]any{})
 		})
 	})
 
@@ -785,7 +822,7 @@ func TestNilLoggerMethods(t *testing.T) {
 		assert.NotPanics(t, func() {
 			nilLogger.Info("test")
 			nilLogger.Infof("test %s", "arg")
-			nilLogger.Infoj(map[string]interface{}{})
+			nilLogger.Infoj(map[string]any{})
 		})
 	})
 
@@ -793,7 +830,7 @@ func TestNilLoggerMethods(t *testing.T) {
 		assert.NotPanics(t, func() {
 			nilLogger.Warn("test")
 			nilLogger.Warnf("test %s", "arg")
-			nilLogger.Warnj(map[string]interface{}{})
+			nilLogger.Warnj(map[string]any{})
 		})
 	})
 
@@ -801,19 +838,19 @@ func TestNilLoggerMethods(t *testing.T) {
 		assert.NotPanics(t, func() {
 			nilLogger.Error("test")
 			nilLogger.Errorf("test %s", "arg")
-			nilLogger.Errorj(map[string]interface{}{})
+			nilLogger.Errorj(map[string]any{})
 		})
 	})
 
 	t.Run("Fatal methods", func(t *testing.T) {
 		assert.NotPanics(t, func() {
-			nilLogger.Fatalj(map[string]interface{}{})
+			nilLogger.Fatalj(map[string]any{})
 		})
 	})
 
 	t.Run("Panic methods", func(t *testing.T) {
 		assert.NotPanics(t, func() {
-			nilLogger.Panicj(map[string]interface{}{})
+			nilLogger.Panicj(map[string]any{})
 		})
 	})
 
@@ -868,14 +905,14 @@ func TestMultiLevelWriterThreadSafety(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			multi.AddWriter(writer)
 		}
 		done <- true
 	}()
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			multi.Write([]byte("test"))
 		}
 		done <- true
@@ -1253,7 +1290,7 @@ func TestGormLoggerInfoWarnError(t *testing.T) {
 		buf.Reset()
 		gl.Info(ctx, "info %s", "message")
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "info message", logEntry["message"])
 	})
@@ -1262,7 +1299,7 @@ func TestGormLoggerInfoWarnError(t *testing.T) {
 		buf.Reset()
 		gl.Warn(ctx, "warn %s", "message")
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "warn message", logEntry["message"])
 	})
@@ -1271,7 +1308,7 @@ func TestGormLoggerInfoWarnError(t *testing.T) {
 		buf.Reset()
 		gl.Error(ctx, "error %s", "message")
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "error message", logEntry["message"])
 	})
@@ -1325,7 +1362,7 @@ func TestGormLoggerTrace(t *testing.T) {
 			return "SELECT * FROM users", 0
 		}, assert.AnError)
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "error", logEntry["level"])
 		assert.Contains(t, logEntry["message"], "gorm error")
@@ -1338,7 +1375,7 @@ func TestGormLoggerTrace(t *testing.T) {
 			return "SELECT * FROM large_table", 1000
 		}, nil)
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "warn", logEntry["level"])
 		assert.Contains(t, logEntry["message"], "slow query")
@@ -1351,7 +1388,7 @@ func TestGormLoggerTrace(t *testing.T) {
 			return "SELECT 1", 1
 		}, nil)
 
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &logEntry))
 		assert.Equal(t, "debug", logEntry["level"])
 		assert.Contains(t, logEntry["message"], "query")

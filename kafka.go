@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -20,6 +21,13 @@ const (
 	defaultKafkaTopic   = "service-logs"
 )
 
+var marshalLogEntry = json.Marshal
+
+type kafkaProducer interface {
+	ProduceSync(ctx context.Context, rs ...*kgo.Record) kgo.ProduceResults
+	Close()
+}
+
 type KafkaLogEntry struct {
 	Level     string `json:"level"`
 	Message   string `json:"message"`
@@ -32,12 +40,12 @@ type KafkaLogEntry struct {
 
 type kafkaWriter struct {
 	logger   *Logger
-	producer *kgo.Client
+	producer kafkaProducer
 	timeout  time.Duration
 	topic    string
 }
 
-func newKafkaWriter(l *Logger, producer *kgo.Client, topic string) *kafkaWriter {
+func newKafkaWriter(l *Logger, producer kafkaProducer, topic string) *kafkaWriter {
 	if topic == "" {
 		topic = defaultKafkaTopic
 	}
@@ -55,7 +63,7 @@ func (kw *kafkaWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 
-	var logData map[string]interface{}
+	var logData map[string]any
 	if err := json.Unmarshal(p, &logData); err != nil {
 		return 0, fmt.Errorf("kafka writer: failed to unmarshal log data: %w", err)
 	}
@@ -87,7 +95,7 @@ func (kw *kafkaWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	value, err := json.Marshal(entry)
+	value, err := marshalLogEntry(entry)
 	if err != nil {
 		return 0, fmt.Errorf("kafka writer: failed to marshal log entry: %w", err)
 	}
@@ -144,7 +152,7 @@ func (kl *KafkaLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
 
 	for i := 0; i < len(keyvals); i += 2 {
 		key := fmt.Sprint(keyvals[i])
-		var value interface{} = ""
+		var value any = ""
 		if i+1 < len(keyvals) {
 			value = keyvals[i+1]
 		}
@@ -272,7 +280,7 @@ func createCompressionCodecs(compressions []CompressionType) []kgo.CompressionCo
 
 func buildTLSDialer(cfg TLSConfig) (*tls.Dialer, error) {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		InsecureSkipVerify: cfg.InsecureSkipVerify, // #nosec G402 -- TLS verification is intentionally configurable
 	}
 
 	if cfg.MinVersion != "" {
@@ -306,7 +314,7 @@ func buildTLSDialer(cfg TLSConfig) (*tls.Dialer, error) {
 		}
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("failed to parse CA certificate")
+			return nil, errors.New("failed to parse CA certificate")
 		}
 		tlsConfig.RootCAs = caCertPool
 	}

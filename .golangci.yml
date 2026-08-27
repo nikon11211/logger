@@ -11,6 +11,16 @@ linters:
     - staticcheck
     - unconvert
     - unused
+    - errname
+    - errorlint
+    - nilerr
+    - usestdlibvars
+    - intrange
+    - perfsprint
+    - recvcheck
+    - wastedassign
+    - copyloopvar
+    - gosec
 
   settings:
     misspell:
@@ -20,6 +30,12 @@ linters:
         - name: exported
           severity: warning
           disabled: false
+        - name: package-comments
+          severity: warning
+          disabled: true
+    gosec:
+      severity: low
+      confidence: low
 
   exclusions:
     generated: lax
@@ -31,6 +47,9 @@ linters:
       - linters:
           - errcheck
           - unused
+        path: _test\.go
+      - linters:
+          - gosec
         path: _test\.go
 
 formatters:

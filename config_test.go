@@ -39,7 +39,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	assert.True(t, cfg.PrettyPrint)
 	assert.False(t, cfg.TraceEnabled)
 	assert.False(t, cfg.GormTrace)
-	assert.Equal(t, uint(200), cfg.GormSlowQueryThreshold)
+	assert.Equal(t, int64(200), cfg.GormSlowQueryThreshold)
 	assert.False(t, cfg.Color)
 
 	assert.Equal(t, PartitionerUniformBytes, cfg.KafkaConfig.Producer.Partitioner)

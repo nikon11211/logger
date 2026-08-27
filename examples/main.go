@@ -143,5 +143,5 @@ func main() {
 }
 
 func simulateDatabaseError() error {
-	return fmt.Errorf("connection timeout after 30s: dial tcp 10.0.0.1:5432: i/o timeout")
+	return errors.New("connection timeout after 30s: dial tcp 10.0.0.1:5432: i/o timeout")
 }

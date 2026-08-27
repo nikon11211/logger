@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -34,66 +35,30 @@ const (
 	CompressionZstd   CompressionType = "zstd"
 )
 
-// Config holds the complete configuration for the Logger
 type Config struct {
-	// Module is the name of the service/module using the logger
-	Module string `yaml:"module" mapstructure:"module" validate:"required"`
-
-	// LogLevel sets the minimum log level (debug, info, warn, error)
-	LogLevel string `yaml:"log_level" mapstructure:"log_level" validate:"required"`
-
-	// CallerDepth controls how many stack frames to skip when reporting caller
-	CallerDepth int `yaml:"caller_depth" mapstructure:"caller_depth"`
-
-	// KafkaLogLevel sets the log level for Kafka client
-	KafkaLogLevel string `yaml:"kafka_log_level" mapstructure:"kafka_log_level" validate:"required"`
-
-	// PrettyPrint enables human-readable console output instead of JSON
-	PrettyPrint bool `yaml:"pretty_print" mapstructure:"pretty_print"`
-
-	// TraceEnabled enables OpenTelemetry trace context injection
-	TraceEnabled bool `yaml:"trace_enabled" mapstructure:"trace_enabled"`
-
-	// GormTrace enables GORM query tracing
-	GormTrace bool `yaml:"gorm_trace" mapstructure:"gorm_trace"`
-
-	// GormSlowQueryThreshold defines slow query threshold in milliseconds
-	GormSlowQueryThreshold uint `yaml:"gorm_slow_query_threshold" mapstructure:"gorm_slow_query_threshold"`
-
-	// Color enables colored output (only when PrettyPrint is true)
-	Color bool `yaml:"color" mapstructure:"color"`
-
-	// KafkaConfig holds Kafka producer configuration
-	KafkaConfig KafkaConfig `mapstructure:"kafka_config" yaml:"kafka_config"`
+	Module                 string      `yaml:"module" mapstructure:"module" validate:"required"`
+	LogLevel               string      `yaml:"log_level" mapstructure:"log_level" validate:"required"`
+	CallerDepth            int         `yaml:"caller_depth" mapstructure:"caller_depth"`
+	KafkaLogLevel          string      `yaml:"kafka_log_level" mapstructure:"kafka_log_level" validate:"required"`
+	PrettyPrint            bool        `yaml:"pretty_print" mapstructure:"pretty_print"`
+	TraceEnabled           bool        `yaml:"trace_enabled" mapstructure:"trace_enabled"`
+	GormTrace              bool        `yaml:"gorm_trace" mapstructure:"gorm_trace"`
+	GormSlowQueryThreshold int64       `yaml:"gorm_slow_query_threshold" mapstructure:"gorm_slow_query_threshold"`
+	Color                  bool        `yaml:"color" mapstructure:"color"`
+	KafkaConfig            KafkaConfig `mapstructure:"kafka_config" yaml:"kafka_config"`
 }
 
-// KafkaConfig holds Kafka-specific configuration
 type KafkaConfig struct {
-	// ProduceConfig contains common Kafka producer settings
 	ProduceConfig `yaml:",inline" mapstructure:",squash"`
-
-	// Producer contains Kafka producer-specific settings
-	Producer ProducerConfig `yaml:"config" mapstructure:"producer" validate:"required"`
+	Producer      ProducerConfig `yaml:"config" mapstructure:"producer" validate:"required"`
 }
 
-// ProduceConfig holds the common Kafka producer configuration
 type ProduceConfig struct {
-	// Brokers is a list of Kafka broker addresses
-	Brokers []string `yaml:"brokers" mapstructure:"brokers" validate:"required"`
-
-	// Topic is the Kafka topic for log messages
-	Topic string `yaml:"topic" mapstructure:"topic" validate:"required"`
-
-	// TLS holds TLS configuration
-	TLS TLSConfig `yaml:"tls" mapstructure:"tls"`
-
-	// SASL holds SASL configuration
-	SASL SASLConfig `yaml:"sasl" mapstructure:"sasl"`
-
-	// Timeout holds connection timeout settings
+	Brokers []string      `yaml:"brokers" mapstructure:"brokers" validate:"required"`
+	Topic   string        `yaml:"topic" mapstructure:"topic" validate:"required"`
+	TLS     TLSConfig     `yaml:"tls" mapstructure:"tls"`
+	SASL    SASLConfig    `yaml:"sasl" mapstructure:"sasl"`
 	Timeout TimeoutConfig `yaml:"timeout" mapstructure:"timeout"`
-
-	// Metrics holds Prometheus metrics configuration
 	Metrics MetricsConfig `yaml:"metrics" mapstructure:"metrics"`
 }
 
@@ -171,7 +136,7 @@ func DefaultConfig() Config {
 
 func (c Config) Validate() error {
 	if c.Module == "" {
-		return fmt.Errorf("module name is required")
+		return errors.New("module name is required")
 	}
 
 	validLevels := map[string]bool{
@@ -190,18 +155,18 @@ func (c Config) Validate() error {
 	}
 
 	if c.CallerDepth < 0 {
-		return fmt.Errorf("caller depth must be non-negative")
+		return errors.New("caller depth must be non-negative")
 	}
 
 	if len(c.KafkaConfig.Brokers) > 0 {
 		if c.KafkaConfig.Topic == "" {
-			return fmt.Errorf("kafka topic is required when brokers are configured")
+			return errors.New("kafka topic is required when brokers are configured")
 		}
 		if c.KafkaConfig.Producer.BatchMaxBytes <= 0 {
-			return fmt.Errorf("batch max bytes must be greater than 0")
+			return errors.New("batch max bytes must be greater than 0")
 		}
 		if c.KafkaConfig.Producer.RecordRetries < 0 {
-			return fmt.Errorf("record retries must be non-negative")
+			return errors.New("record retries must be non-negative")
 		}
 	}
 

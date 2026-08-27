@@ -13,11 +13,14 @@
   <a href="https://codecov.io/gh/nikon11211/logger">
     <img src="https://codecov.io/gh/nikon11211/logger/branch/main/graph/badge.svg" alt="Coverage"/>
   </a>
+  <a href="https://sonarcloud.io/summary/overall?id=nikon11211_logger">
+    <img src="https://sonarcloud.io/api/project_badges/measure?project=nikon11211_logger&metric=coverage" alt="SonarCloud Coverage"/>
+  </a>
   <a href="https://opensource.org/licenses/MIT">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"/>
   </a>
   <a href="https://golang.org/">
-    <img src="https://img.shields.io/badge/Go-%3E%3D%201.21-blue" alt="Go Version"/>
+    <img src="https://img.shields.io/badge/Go-%3E%3D%201.26-blue" alt="Go Version"/>
   </a>
 </p>
 
@@ -104,7 +107,7 @@ go get github.com/nikon11211/logger
 │  │ Console  │ │  Kafka   │ │   GORM   │ │  OpenTelemetry   │    │
 │  │ Writer   │ │  Writer  │ │  Logger  │ │     Tracing      │    │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────────┬─────────┘    │
-│       └─────────────┴────────────┴───────────────┘              │
+│       └────────────┴────────────┴────────────────┘              │
 │                          │                                      │
 │                   MultiLevelWriter                              │
 │                          │                                      │
@@ -382,15 +385,18 @@ log.NewKafkaLogger(env, service string) *KafkaLogger
 
 ## 📊 Benchmarks
 
+Run them with:
+
+```bash
+go test -bench=. -benchmem -run '^$' .
 ```
-BenchmarkLoggerDebug-16             50,000,000    25.1 ns/op     0 B/op    0 allocs/op
-BenchmarkLoggerInfo-16              50,000,000    24.8 ns/op     0 B/op    0 allocs/op
-BenchmarkLoggerError-16             50,000,000    25.2 ns/op     0 B/op    0 allocs/op
-BenchmarkLoggerWithContext-16       30,000,000    45.3 ns/op     0 B/op    0 allocs/op
-BenchmarkLoggerDebugf-16            20,000,000    89.7 ns/op     0 B/op    0 allocs/op
-BenchmarkKafkaWriter-16             10,000,000   156.2 ns/op   128 B/op    2 allocs/op
-BenchmarkGormLogger-16              15,000,000    78.4 ns/op     0 B/op    0 allocs/op
-```
+
+| Benchmark                    | What it measures                        |
+|------------------------------|-----------------------------------------|
+| `BenchmarkLoggerDebug`       | Zero-arg structured debug entry         |
+| `BenchmarkLoggerInfo`        | Zero-arg structured info entry          |
+| `BenchmarkLoggerDebugF`      | Formatted debug entry                   |
+| `BenchmarkLoggerWithContext` | Context-aware logging with trace info   |
 
 ## 🎨 Output Formats
 

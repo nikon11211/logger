@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -144,8 +143,7 @@ func main() {
 }
 
 func simulateDatabaseError() error {
-	// Симуляция: иногда ошибка, иногда успех
-	if rand.Intn(2) == 0 {
+	if time.Now().Unix()%2 == 0 {
 		return errors.New("connection timeout after 30s: dial tcp 10.0.0.1:5432: i/o timeout")
 	}
 	return nil
